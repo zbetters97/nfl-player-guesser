@@ -1,9 +1,12 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNflContext } from "../../features/nfl/context/NflContext";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faArrowRight, faSpinner } from "@fortawesome/free-solid-svg-icons";
 
 export default function HomePage() {
   const { getPlayers, getPlayerRoster, getPlayerBio } = useNflContext();
 
+  const [started, setStarted] = useState(false);
   const [player, setPlayer] = useState({});
   const [teams, setTeams] = useState(new Map());
   const [college, setCollege] = useState("");
@@ -12,7 +15,7 @@ export default function HomePage() {
   const [answer, setAnswer] = useState("");
   const [win, setWin] = useState(false);
 
-  const getPlayerRecord = async () => {
+  const getPlayer = async () => {
     try {
       const players = await getPlayers();
 
@@ -67,8 +70,10 @@ export default function HomePage() {
   };
 
   const loadPLayerData = async () => {
-    const player = await getPlayerRecord();
+    const player = await getPlayer();
     if (!player) return;
+
+    console.log(player);
 
     setPlayer(player);
 
@@ -78,11 +83,102 @@ export default function HomePage() {
     setCollege(college);
   };
 
-  useEffect(() => {
+  const handleStart = () => {
+    setStarted(true);
+    resetGame();
     loadPLayerData();
-  }, []);
+  };
 
-  function groupTeams(teamMap) {
+  const handleSubmit = (e) => {
+    e.preventDefault();
+
+    if (showPlayer) {
+      resetGame();
+    } else {
+      checkAnswer();
+    }
+  };
+
+  const checkAnswer = () => {
+    if (answer.length == 0) return;
+
+    const formattedAnswer = answer
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "");
+    const formattedName = player.display_name
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "");
+
+    setWin(formattedAnswer == formattedName);
+
+    setShowPlayer(true);
+  };
+
+  const resetGame = () => {
+    setShowPlayer(false);
+    setHint(0);
+    setTeams(new Map());
+    setCollege("");
+    setPlayer({});
+    setAnswer("");
+    setWin(false);
+    loadPLayerData();
+  };
+
+  return !started ? (
+    <button onClick={handleStart}>Start Game</button>
+  ) : teams.size == 0 ? (
+    <LoadingSpinner />
+  ) : (
+    <div>
+      <TeamsList teams={teams} />
+      <PlayerImage player={player} showPlayer={showPlayer} />
+      <PlayerInfo
+        player={player}
+        college={college}
+        hint={hint}
+        showPlayer={showPlayer}
+      />
+
+      <RevealButton
+        hint={hint}
+        setHint={setHint}
+        showPlayer={showPlayer}
+        setShowPlayer={setShowPlayer}
+      />
+      <form onSubmit={handleSubmit}>
+        <input
+          type="text"
+          value={answer}
+          onChange={(e) => setAnswer(e.target.value)}
+          disabled={showPlayer}
+        />
+        <button type="submit">
+          {showPlayer ? "Play Again" : "Submit Answer"}
+        </button>
+      </form>
+
+      {showPlayer && (
+        <p style={{ color: win ? "green" : "red", fontWeight: "bold" }}>
+          {win ? "Correct!" : "Incorrect!"}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function LoadingSpinner() {
+  return (
+    <div>
+      <FontAwesomeIcon icon={faSpinner} spinPulse size="2xl" />
+    </div>
+  );
+}
+
+function TeamsList({ teams }) {
+  const groupTeams = (teamMap) => {
     const entries = [...teamMap.entries()].sort((a, b) => a[0] - b[0]);
 
     if (entries.length == 0) {
@@ -122,9 +218,73 @@ export default function HomePage() {
     });
 
     return groups;
-  }
+  };
 
-  const handleClick = () => {
+  return (
+    <div style={{ display: "inline-block" }}>
+      {groupTeams(teams).map((g, index, arr) => {
+        return (
+          <div
+            key={`${g.team}-${g.startYear}`}
+            style={{ display: "inline-flex", alignItems: "center" }}
+          >
+            <span
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+              }}
+            >
+              <img
+                src={`/images/logos/${g.team}.png`}
+                style={{
+                  width: "75px",
+                  height: "75px",
+                  objectFit: "contain",
+                }}
+              />
+              {g.startYear}
+              {g.startYear !== g.endYear && ` - ${g.endYear}`}
+            </span>
+            {index < arr.length - 1 && <FontAwesomeIcon icon={faArrowRight} />}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function PlayerImage({ player, showPlayer }) {
+  const image = showPlayer
+    ? `https://nflmeta.org${player.headshot_url}`
+    : "/images/mystery_player.png";
+
+  return (
+    <div>
+      <img
+        src={image}
+        style={{
+          width: "125px",
+          height: "125px",
+          objectFit: "contain",
+        }}
+      />
+    </div>
+  );
+}
+
+function PlayerInfo({ player, college, hint, showPlayer }) {
+  return (
+    <div>
+      <div>Name: {(3 <= hint || showPlayer) && player.display_name}</div>
+      <div>College: {0 < hint && college}</div>
+      <div>Position: {2 <= hint && player.position}</div>
+    </div>
+  );
+}
+
+function RevealButton({ hint, setHint, showPlayer, setShowPlayer }) {
+  const handleHint = () => {
     if (hint < 3) {
       setHint(hint + 1);
 
@@ -134,101 +294,9 @@ export default function HomePage() {
     }
   };
 
-  const handleSubmit = () => {
-    if (showPlayer) {
-      resetGame();
-    } else {
-      checkAnswer();
-    }
-  };
-
-  const checkAnswer = () => {
-    if (answer.length == 0) return;
-
-    const formattedAnswer = answer
-      .trim()
-      .replace(/[^a-z0-9]/g, "")
-      .toLowerCase();
-    const formattedName = player.display_name
-      .trim()
-      .replace(/[^a-z0-9]/g, "")
-      .toLowerCase();
-    setWin(formattedAnswer == formattedName);
-    setShowPlayer(true);
-  };
-
-  const resetGame = () => {
-    setShowPlayer(false);
-    setHint(0);
-    setTeams(new Map());
-    setCollege("");
-    setPlayer({});
-    setAnswer("");
-    setWin(false);
-    loadPLayerData();
-  };
-
-  return player == {} || teams.size == 0 ? (
-    <div>Loading...</div>
-  ) : (
-    <div>
-      <div style={{ display: "inline-block" }}>
-        {groupTeams(teams).map((g, index, arr) => {
-          return (
-            <div
-              key={`${g.team}-${g.startYear}`}
-              style={{ display: "inline-flex", alignItems: "center" }}
-            >
-              <span
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                }}
-              >
-                <img
-                  src={`/images/logos/${g.team}.png`}
-                  width="65px"
-                  height="50px"
-                />
-                {g.startYear}
-                {g.startYear !== g.endYear && ` - ${g.endYear}`}
-              </span>
-              {index < arr.length - 1 && " -> "}
-            </div>
-          );
-        })}
-      </div>
-      <div>
-        <img
-          src={
-            showPlayer
-              ? `https://nflmeta.org${player.headshot_url}`
-              : "/images/mystery_player.png"
-          }
-          width="100px"
-          height="75px"
-        />
-        <div>Name: {(3 <= hint || showPlayer) && player.display_name}</div>
-      </div>
-
-      <div>College: {0 < hint && college}</div>
-      <div>Position: {2 <= hint && player.position}</div>
-
-      {hint < 3 && (
-        <button onClick={handleClick}>
-          Reveal {hint == 0 ? "College" : hint == 1 ? "Position" : "Player"}
-        </button>
-      )}
-      <input
-        type="text"
-        value={answer}
-        onChange={(e) => setAnswer(e.target.value)}
-      />
-      <button onClick={handleSubmit}>
-        {showPlayer ? "Play Again" : "Submit Answer"}
-      </button>
-      {win && <p>Success!</p>}
-    </div>
+  return (
+    <button onClick={handleHint} disabled={showPlayer}>
+      Reveal {hint == 0 ? "College" : hint == 1 ? "Position" : "Player"}
+    </button>
   );
 }
