@@ -7,6 +7,7 @@ export default function HomePage() {
   const { getPlayers, getPlayerRoster, getPlayerBio } = useNflContext();
 
   const [started, setStarted] = useState(false);
+  const [selectedValue, setSelectedValue] = useState("");
   const [player, setPlayer] = useState({});
   const [teams, setTeams] = useState(new Map());
   const [college, setCollege] = useState("");
@@ -19,17 +20,20 @@ export default function HomePage() {
     try {
       const players = await getPlayers();
 
+      const MIN_LAST_SEASON = 2015;
       const MIN_YEARS_PLAYED = 5;
 
       while (true) {
         const randomIndex = Math.floor(Math.random() * players.length);
         const player = players[randomIndex];
+        if (!player) continue;
 
-        if (
-          player &&
-          2015 < player.last_season &&
-          MIN_YEARS_PLAYED <= player.years_of_experience
-        ) {
+        const playerCondition =
+          MIN_LAST_SEASON <= player.last_season &&
+          MIN_YEARS_PLAYED <= player.years_of_experience &&
+          (selectedValue === "" || player.position === selectedValue);
+
+        if (playerCondition) {
           return player;
         }
       }
@@ -72,8 +76,6 @@ export default function HomePage() {
   const loadPLayerData = async () => {
     const player = await getPlayer();
     if (!player) return;
-
-    console.log(player);
 
     setPlayer(player);
 
@@ -127,43 +129,66 @@ export default function HomePage() {
     loadPLayerData();
   };
 
-  return !started ? (
-    <button onClick={handleStart}>Start Game</button>
-  ) : teams.size == 0 ? (
-    <LoadingSpinner />
-  ) : (
-    <div>
-      <TeamsList teams={teams} />
-      <PlayerImage player={player} showPlayer={showPlayer} />
-      <PlayerInfo
-        player={player}
-        college={college}
-        hint={hint}
-        showPlayer={showPlayer}
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+      <PositionDropdown
+        selectedValue={selectedValue}
+        setSelectedValue={setSelectedValue}
       />
 
-      <RevealButton
-        hint={hint}
-        setHint={setHint}
-        showPlayer={showPlayer}
-        setShowPlayer={setShowPlayer}
-      />
-      <form onSubmit={handleSubmit}>
-        <input
-          type="text"
-          value={answer}
-          onChange={(e) => setAnswer(e.target.value)}
-          disabled={showPlayer}
-        />
-        <button type="submit">
-          {showPlayer ? "Play Again" : "Submit Answer"}
-        </button>
-      </form>
+      {!started ? (
+        <button onClick={handleStart}>Start Game</button>
+      ) : teams.size == 0 ? (
+        <LoadingSpinner />
+      ) : (
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.5rem",
+            alignItems: "flex-start",
+          }}
+        >
+          <TeamsList teams={teams} />
+          <PlayerImage player={player} showPlayer={showPlayer} />
+          <PlayerInfo
+            player={player}
+            college={college}
+            hint={hint}
+            showPlayer={showPlayer}
+          />
 
-      {showPlayer && (
-        <p style={{ color: win ? "green" : "red", fontWeight: "bold" }}>
-          {win ? "Correct!" : "Incorrect!"}
-        </p>
+          <RevealButton
+            hint={hint}
+            setHint={setHint}
+            showPlayer={showPlayer}
+            setShowPlayer={setShowPlayer}
+          />
+          <form
+            onSubmit={handleSubmit}
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "flex-start",
+            }}
+          >
+            <input
+              type="text"
+              value={answer}
+              onChange={(e) => setAnswer(e.target.value)}
+              disabled={showPlayer}
+            />
+            <button type="submit">
+              {showPlayer ? "Play Again" : "Submit Answer"}
+            </button>
+          </form>
+
+          {showPlayer && (
+            <p style={{ color: win ? "green" : "red", fontWeight: "bold" }}>
+              {win ? "Correct!" : "Incorrect!"}
+            </p>
+          )}
+        </div>
       )}
     </div>
   );
@@ -173,6 +198,26 @@ function LoadingSpinner() {
   return (
     <div>
       <FontAwesomeIcon icon={faSpinner} spinPulse size="2xl" />
+    </div>
+  );
+}
+
+function PositionDropdown({ selectedValue, setSelectedValue }) {
+  return (
+    <div>
+      <label htmlFor="options">Show only: </label>
+      <select
+        id="options"
+        value={selectedValue}
+        onChange={(e) => setSelectedValue(e.target.value)}
+      >
+        <option value="" disabled>
+          -- Any --
+        </option>
+        <option value="QB">QB</option>
+        <option value="RB">RB</option>
+        <option value="WR">WR</option>
+      </select>
     </div>
   );
 }
