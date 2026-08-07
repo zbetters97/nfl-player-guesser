@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useNflContext } from "../../features/nfl/context/NflContext";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faArrowRight, faSpinner } from "@fortawesome/free-solid-svg-icons";
@@ -10,7 +10,7 @@ import {
 } from "../../data/const";
 
 export default function HomePage() {
-  const { getPlayersAfterYear, getPlayerRoster, getPlayerBio } =
+  const { getPlayersAfterYear, getPlayerHistory, getPlayerBio } =
     useNflContext();
 
   const [started, setStarted] = useState(false);
@@ -30,26 +30,33 @@ export default function HomePage() {
 
   const getPlayer = async () => {
     try {
+      // Fetch all players who played at least after 2015
       let players = await getPlayersAfterYear(MIN_LAST_SEASON);
 
+      // User selected position to show, filter only selected position
       if (selectedPosition != "") {
         players = players.filter(
-          (player) => player.position == selectedPosition,
+          (player) =>
+            player.position == selectedPosition &&
+            MIN_YEARS_PLAYED <= player.years_of_experience,
         );
       } else {
+        // Filter out excluded positions if applicable
         players = players.filter(
-          (player) => !excludedPositions.has(player.position),
+          (player) =>
+            !excludedPositions.has(player.position) &&
+            MIN_YEARS_PLAYED <= player.years_of_experience,
         );
       }
 
+      // Generate until valid player is found
       while (true) {
+        // Random index from players array
         const randomIndex = Math.floor(Math.random() * players.length);
         const player = players[randomIndex];
         if (!player) continue;
 
-        if (MIN_YEARS_PLAYED <= player.years_of_experience) {
-          return player;
-        }
+        return player;
       }
     } catch (error) {
       console.error(error);
@@ -57,43 +64,50 @@ export default function HomePage() {
     }
   };
 
-  const getPlayerTeams = async (player_key) => {
+  const setPlayerTeams = async (player_key) => {
     if (!player_key) return;
 
-    const playerRoster = await getPlayerRoster(player_key);
-    if (!playerRoster.data) return;
+    // Fetch player historical data
+    const playerHistory = await getPlayerHistory(player_key);
+    if (!playerHistory.data) return;
 
     const history = new Map();
 
-    for (const season of playerRoster.data) {
+    // Add K/V year/team
+    for (const season of playerHistory.data) {
       history.set(season.season_year, season.season_team_abbr);
     }
 
+    // Sort earliest to latest
     const years = [...history.keys()].sort((a, b) => a - b);
 
+    const sortedHistory = new Map();
+
+    // If year skipped, add Free Agency
     for (let year = years[0]; year <= years[years.length - 1]; year++) {
-      if (!history.has(year)) {
-        history.set(year, "FA");
-      }
+      sortedHistory.set(year, history.get(year) ?? "FA");
     }
 
-    setTeams(new Map([...history.entries()].sort((a, b) => a[0] - b[0])));
+    return sortedHistory;
   };
 
   const getPlayerCollege = async (player_key) => {
-    if (player_key == undefined) return;
+    if (!player_key) return;
 
     const bio = await getPlayerBio(player_key);
+    if (!bio?.data?.college_name) return "";
+
     return bio.data.college_name;
   };
 
   const loadPLayerData = async () => {
     const player = await getPlayer();
-    if (!player) return;
-
     setPlayer(player);
 
-    await getPlayerTeams(player.player_key);
+    if (!player) return;
+
+    const playerTeams = await setPlayerTeams(player.player_key);
+    setTeams(playerTeams);
 
     const college = await getPlayerCollege(player.player_key);
     setCollege(college);
@@ -364,34 +378,31 @@ function TeamsList({ teams }) {
         gap: "1em",
       }}
     >
-      {groupTeams(teams).map((g, index, arr) => {
-        return (
-          <>
-            <div
-              key={`${g.team}-${g.startYear}`}
+      {groupTeams(teams).map((g, index, arr) => (
+        <React.Fragment key={`${g.team}-${g.startYear}`}>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+            }}
+          >
+            <img
+              src={`/images/logos/${g.team}.png`}
               style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
+                width: "75px",
+                height: "75px",
+                objectFit: "contain",
               }}
-            >
-              <img
-                src={`/images/logos/${g.team}.png`}
-                style={{
-                  width: "75px",
-                  height: "75px",
-                  objectFit: "contain",
-                }}
-              />
-              <p style={{ fontWeight: "bold" }}>
-                {g.startYear}
-                {g.startYear !== g.endYear && ` - ${g.endYear}`}
-              </p>
-            </div>
-            {index < arr.length - 1 && <FontAwesomeIcon icon={faArrowRight} />}
-          </>
-        );
-      })}
+            />
+            <p style={{ fontSize: "18px", fontWeight: "bold" }}>
+              {g.startYear}
+              {g.startYear !== g.endYear && ` - ${g.endYear}`}
+            </p>
+          </div>
+          {index < arr.length - 1 && <FontAwesomeIcon icon={faArrowRight} />}
+        </React.Fragment>
+      ))}
     </div>
   );
 }

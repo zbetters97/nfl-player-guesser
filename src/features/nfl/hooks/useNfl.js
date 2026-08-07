@@ -20,7 +20,7 @@ export function useNfl() {
     return players.filter((player) => player.last_season >= year);
   };
 
-  const getPlayerRoster = async (playerKey) => {
+  const getPlayerHistory = async (playerKey) => {
     const res = await fetch(
       `http://localhost:3001/api?path=${encodeURIComponent(`players/${playerKey}/career/seasons`)}`,
     );
@@ -41,7 +41,7 @@ export function useNfl() {
     getTeamByAbbr,
     getPlayers,
     getPlayersAfterYear,
-    getPlayerRoster,
+    getPlayerHistory,
     getPlayerBio,
   };
 }
