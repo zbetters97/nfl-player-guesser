@@ -2,12 +2,20 @@ import { useState } from "react";
 import { useNflContext } from "../../features/nfl/context/NflContext";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faArrowRight, faSpinner } from "@fortawesome/free-solid-svg-icons";
+import {
+  MIN_LAST_SEASON,
+  MIN_YEARS_PLAYED,
+  POSITION_GROUPS,
+  POSITIONS,
+} from "../../data/const";
 
 export default function HomePage() {
-  const { getPlayers, getPlayerRoster, getPlayerBio } = useNflContext();
+  const { getPlayersAfterYear, getPlayerRoster, getPlayerBio } =
+    useNflContext();
 
   const [started, setStarted] = useState(false);
-  const [selectedValue, setSelectedValue] = useState("");
+  const [selectedPosition, setSelectedPosition] = useState("");
+  const [excludedGroups, setExcludedGroups] = useState(new Set());
   const [player, setPlayer] = useState({});
   const [teams, setTeams] = useState(new Map());
   const [college, setCollege] = useState("");
@@ -16,24 +24,30 @@ export default function HomePage() {
   const [answer, setAnswer] = useState("");
   const [win, setWin] = useState(false);
 
+  const excludedPositions = new Set(
+    [...excludedGroups].flatMap((group) => POSITION_GROUPS[group]),
+  );
+
   const getPlayer = async () => {
     try {
-      const players = await getPlayers();
+      let players = await getPlayersAfterYear(MIN_LAST_SEASON);
 
-      const MIN_LAST_SEASON = 2015;
-      const MIN_YEARS_PLAYED = 5;
+      if (selectedPosition != "") {
+        players = players.filter(
+          (player) => player.position == selectedPosition,
+        );
+      } else {
+        players = players.filter(
+          (player) => !excludedPositions.has(player.position),
+        );
+      }
 
       while (true) {
         const randomIndex = Math.floor(Math.random() * players.length);
         const player = players[randomIndex];
         if (!player) continue;
 
-        const playerCondition =
-          MIN_LAST_SEASON <= player.last_season &&
-          MIN_YEARS_PLAYED <= player.years_of_experience &&
-          (selectedValue === "" || player.position === selectedValue);
-
-        if (playerCondition) {
+        if (MIN_YEARS_PLAYED <= player.years_of_experience) {
           return player;
         }
       }
@@ -57,7 +71,7 @@ export default function HomePage() {
 
     const years = [...history.keys()].sort((a, b) => a - b);
 
-    for (var year = years[0]; year <= years[years.length - 1]; year++) {
+    for (let year = years[0]; year <= years[years.length - 1]; year++) {
       if (!history.has(year)) {
         history.set(year, "FA");
       }
@@ -88,7 +102,6 @@ export default function HomePage() {
   const handleStart = () => {
     setStarted(true);
     resetGame();
-    loadPLayerData();
   };
 
   const handleSubmit = (e) => {
@@ -113,9 +126,26 @@ export default function HomePage() {
       .toLowerCase()
       .replace(/[^a-z0-9]/g, "");
 
-    setWin(formattedAnswer == formattedName);
+    // Get letter differences between guess and answer
+    const differences = countDifferences(formattedAnswer, formattedName);
+
+    // Name is mispelled within 2 letters, count as correct
+    setWin(differences <= 2);
 
     setShowPlayer(true);
+  };
+
+  const countDifferences = (a, b) => {
+    let differences = Math.abs(a.length - b.length);
+    const minLength = Math.min(a.length, b.length);
+
+    for (let i = 0; i < minLength; i++) {
+      if (a[i] !== b[i]) {
+        differences++;
+      }
+    }
+
+    return differences;
   };
 
   const resetGame = () => {
@@ -130,11 +160,25 @@ export default function HomePage() {
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: "1rem",
+        alignItems: "flex-start",
+      }}
+    >
       <PositionDropdown
-        selectedValue={selectedValue}
-        setSelectedValue={setSelectedValue}
+        selectedValue={selectedPosition}
+        setSelectedValue={setSelectedPosition}
       />
+
+      {selectedPosition == "" && (
+        <PositionExclusionCheckbox
+          excludedGroups={excludedGroups}
+          setExcludedGroups={setExcludedGroups}
+        />
+      )}
 
       {!started ? (
         <button onClick={handleStart}>Start Game</button>
@@ -204,20 +248,66 @@ function LoadingSpinner() {
 
 function PositionDropdown({ selectedValue, setSelectedValue }) {
   return (
-    <div>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "flex-start",
+      }}
+    >
       <label htmlFor="options">Show only: </label>
       <select
         id="options"
         value={selectedValue}
         onChange={(e) => setSelectedValue(e.target.value)}
       >
-        <option value="" disabled>
-          -- Any --
-        </option>
-        <option value="QB">QB</option>
-        <option value="RB">RB</option>
-        <option value="WR">WR</option>
+        <option value="">-- Any --</option>
+        {POSITIONS.map((p) => {
+          return (
+            <option key={p} value={p}>
+              {p}
+            </option>
+          );
+        })}
       </select>
+    </div>
+  );
+}
+
+function PositionExclusionCheckbox({ excludedGroups, setExcludedGroups }) {
+  const changeExcludedPosition = (e, positionGroup) => {
+    setExcludedGroups((prev) => {
+      const next = new Set(prev);
+
+      if (e.target.checked) {
+        next.add(positionGroup);
+      } else {
+        next.delete(positionGroup);
+      }
+
+      return next;
+    });
+  };
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "flex-start",
+      }}
+    >
+      Don't include:
+      {Object.keys(POSITION_GROUPS).map((groupName) => (
+        <label key={groupName}>
+          <input
+            type="checkbox"
+            checked={excludedGroups.has(groupName)}
+            onChange={(e) => changeExcludedPosition(e, groupName)}
+          />
+          {groupName.replace("_", " ")}
+        </label>
+      ))}
     </div>
   );
 }
