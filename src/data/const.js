@@ -24,7 +24,7 @@ const POSITIONS = [
 
 const POSITION_GROUPS = {
   Offense: ["QB", "RB", "FB", "WR", "TE", "C", "G", "T"],
-  O_Line: ["C", "G", "T"],
+  Offensive_Line: ["C", "G", "T"],
   Defense: ["DE", "DT", "LB", "CB", "S", "FS", "SS"],
   Special_Teams: ["K", "P", "LS"],
 };

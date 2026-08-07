@@ -356,14 +356,19 @@ function TeamsList({ teams }) {
   };
 
   return (
-    <div style={{ display: "inline-block" }}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "row",
+        alignItems: "center",
+        gap: "1em",
+      }}
+    >
       {groupTeams(teams).map((g, index, arr) => {
         return (
-          <div
-            key={`${g.team}-${g.startYear}`}
-            style={{ display: "inline-flex", alignItems: "center" }}
-          >
-            <span
+          <>
+            <div
+              key={`${g.team}-${g.startYear}`}
               style={{
                 display: "flex",
                 flexDirection: "column",
@@ -378,11 +383,13 @@ function TeamsList({ teams }) {
                   objectFit: "contain",
                 }}
               />
-              {g.startYear}
-              {g.startYear !== g.endYear && ` - ${g.endYear}`}
-            </span>
+              <p style={{ fontWeight: "bold" }}>
+                {g.startYear}
+                {g.startYear !== g.endYear && ` - ${g.endYear}`}
+              </p>
+            </div>
             {index < arr.length - 1 && <FontAwesomeIcon icon={faArrowRight} />}
-          </div>
+          </>
         );
       })}
     </div>
